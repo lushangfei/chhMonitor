@@ -11,7 +11,10 @@ function fmtTime(ts) {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+let unreadObserver;
+
 function render(state, settings) {
+  if (unreadObserver) unreadObserver.disconnect();
   const dot = $("dot");
   const statusText = $("statusText");
   const banner = $("banner");
@@ -38,18 +41,43 @@ function render(state, settings) {
     banner.style.display = "none";
   }
 
+  const sourceErrors = Object.entries(state.sourceStatus || {})
+    .filter(([, status]) => status.ok === false)
+    .map(([key, status]) => `${key === "chiphell" ? "Chiphell" : "V2EX"}：${status.error || "检查失败"}`);
+  const sourceError = sourceErrors.join("；") || state.lastError || "";
+  $("sourceBanner").textContent = sourceError;
+  $("sourceBanner").style.display = sourceError ? "block" : "none";
+  if (sourceError) {
+    dot.className = "dot bad";
+    statusText.textContent = Object.values(state.sourceStatus || {}).some((s) => s.ok)
+      ? "部分来源异常" : "监控异常";
+  }
+
   const list = $("list");
   const empty = $("empty");
   list.innerHTML = "";
   const threads = state.threads || [];
   const unread = new Set(state.unreadTids || []);
 
+  // 只清除滚动视口中实际出现的未读项，后台按这些 ID 合并最新状态。
+  const observedIds = new Map();
+  const observer = new IntersectionObserver((entries) => {
+    const tids = [];
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      tids.push(observedIds.get(entry.target));
+      observer.unobserve(entry.target);
+    }
+    if (tids.length) chrome.runtime.sendMessage({ type: "markRead", tids });
+  }, { root: list });
+  unreadObserver = observer;
+
   if (threads.length === 0) {
     empty.style.display = "block";
     empty.textContent = state.lastError || "暂无帖子";
   } else {
     empty.style.display = "none";
-    threads.slice(0, 50).forEach((t) => {
+    threads.forEach((t) => {
       const li = document.createElement("li");
       const isNew = unread.has(t.tid);
       const cls = [];
@@ -70,6 +98,10 @@ function render(state, settings) {
       li.appendChild(by);
       li.addEventListener("click", () => chrome.tabs.create({ url: t.url }));
       list.appendChild(li);
+      if (isNew) {
+        observedIds.set(li, t.tid);
+        unreadObserver.observe(li);
+      }
     });
   }
 
@@ -83,8 +115,6 @@ function render(state, settings) {
 async function load() {
   const resp = await chrome.runtime.sendMessage({ type: "getState" });
   if (resp && resp.ok) render(resp.state, resp.settings);
-  // 展示后标记为已读，清空角标
-  chrome.runtime.sendMessage({ type: "markRead" });
 }
 
 function escapeHtml(s) {
@@ -99,7 +129,6 @@ $("refresh").addEventListener("click", async () => {
   btn.textContent = "刷新中…";
   const resp = await chrome.runtime.sendMessage({ type: "checkNow" });
   if (resp && resp.ok) render(resp.state, resp.settings);
-  chrome.runtime.sendMessage({ type: "markRead" });
   btn.disabled = false;
   btn.textContent = "立即刷新";
 });

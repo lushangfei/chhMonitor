@@ -6,7 +6,16 @@ const LOGIN_URL = "https://www.chiphell.com/member.php?mod=logging&action=login"
 const V2EX_URL = "https://www.v2ex.com/go/all4all?p=1";
 const V2EX_FEED_URL = "https://www.v2ex.com/feed/all4all.json";
 const ALARM = "ch_check";
+const REQUEST_TIMEOUT_MS = 15000;
 const KNOWN_CAP = 800; // 记忆的历史帖子 id 上限，防止无限增长
+
+// 检查和已读操作共用队列，避免异步读后写相互覆盖。
+let operationQueue = Promise.resolve();
+function serializeOperation(operation) {
+  const result = operationQueue.then(operation);
+  operationQueue = result.catch(() => {});
+  return result;
+}
 
 // ---------- 存储辅助 ----------
 async function getSettings() {
@@ -69,24 +78,26 @@ async function patchState(patch) {
   const s = await getState();
   await chrome.storage.local.set({ state: Object.assign({}, s, patch) });
 }
-async function ensureDefaults() {
-  const r = await chrome.storage.local.get(["settings", "state"]);
-  await chrome.storage.local.set({
-    settings: Object.assign(
-      {
-        intervalMinutes: 5,
-        notify: false,
-        notifyPopup: true,
-        notifySound: false,
-        keywords: "",
-        keywordFilter: false,
-        authors: "",
-        authorFilter: false,
-        combine: "or",
-      },
-      r.settings || {}
-    ),
-    state: r.state || {},
+function ensureDefaults() {
+  return serializeOperation(async () => {
+    const r = await chrome.storage.local.get(["settings", "state"]);
+    await chrome.storage.local.set({
+      settings: Object.assign(
+        {
+          intervalMinutes: 5,
+          notify: false,
+          notifyPopup: true,
+          notifySound: false,
+          keywords: "",
+          keywordFilter: false,
+          authors: "",
+          authorFilter: false,
+          combine: "or",
+        },
+        r.settings || {}
+      ),
+      state: r.state || {},
+    });
   });
 }
 
@@ -286,28 +297,47 @@ function notificationBatchId(threads) {
 }
 
 // ---------- 核心检查 ----------
-async function runCheck(reason) {
+async function fetchText(url, options) {
+  const controller = new AbortController();
+  // 定时器一直保留到正文读完，覆盖已返回响应头、正文却卡住的情况。
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return await response.text();
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("请求超时（15 秒）");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let checkInFlight;
+function runCheck(reason) {
+  // 自动、手动和页面加载触发同一轮检查，共享结果，避免堆积重复请求。
+  if (!checkInFlight) {
+    checkInFlight = serializeOperation(() => performCheck(reason))
+      .finally(() => { checkInFlight = undefined; });
+  }
+  return checkInFlight;
+}
+
+async function performCheck(reason) {
   const settings = await getSettings();
   const st = await getState();
 
   const [chiphellResult, v2exResult] = await Promise.all([
-    fetch(MONITOR_URL, {
+    fetchText(MONITOR_URL, {
       credentials: "include",
       cache: "no-store",
       headers: { Accept: "text/html,application/xhtml+xml" },
-    }).then(async (resp) => {
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      const html = await resp.text();
-      return { loggedIn: detectLogin(html), threads: parseThreads(html) };
-    }).catch((error) => ({ error })),
-    fetch(V2EX_FEED_URL, {
+    }).then((html) => ({ loggedIn: detectLogin(html), threads: parseThreads(html) })).catch((error) => ({ error })),
+    fetchText(V2EX_FEED_URL, {
       credentials: "include",
       cache: "no-store",
       headers: { Accept: "application/feed+json, application/json" },
-    }).then(async (resp) => {
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      return { threads: parseV2exFeed(await resp.text()) };
-    }).catch((error) => ({ error })),
+    }).then((text) => ({ threads: parseV2exFeed(text) })).catch((error) => ({ error })),
   ]);
 
   // 关键词和发帖人过滤同时应用于 Chiphell 与 V2EX。
@@ -397,7 +427,10 @@ async function runCheck(reason) {
       }
     });
     current.forEach((thread) => known.add(thread.tid));
-    threads = threads.filter((thread) => thread.source !== source.key).concat(current);
+    const currentIds = new Set(current.map((thread) => thread.tid));
+    // 未读帖即使滚出来源首页也要保留，直到用户实际看到。
+    threads = threads.filter((thread) => thread.source !== source.key ||
+      (unread.has(thread.tid) && !currentIds.has(thread.tid))).concat(current);
     sourceStatus[source.key] = { ok: true, error: "", count: current.length };
     nextState[source.key === "chiphell" ? "seeded" : "v2exSeeded"] = true;
     if (source.key === "chiphell") {
@@ -452,9 +485,14 @@ async function runCheck(reason) {
   }
 }
 
-async function markRead() {
-  await patchState({ unreadTids: [] });
-  setBadge("", "");
+function markRead(tids) {
+  const displayed = new Set(Array.isArray(tids) ? tids : []);
+  return serializeOperation(async () => {
+    const state = await getState();
+    const unreadTids = (state.unreadTids || []).filter((tid) => !displayed.has(tid));
+    await patchState({ unreadTids });
+    setBadge(unreadTids.length ? String(unreadTids.length) : "", "#c8102e");
+  });
 }
 
 // ---------- 定时器（带抖动，规避流控） ----------
@@ -518,7 +556,7 @@ chrome.runtime.onMessage.addListener((msg, sender, send) => {
       await scheduleNext();
       send({ ok: true, state: await getState(), settings: await getSettings() });
     } else if (msg.type === "markRead") {
-      await markRead();
+      await markRead(msg.tids);
       send({ ok: true });
     } else if (msg.type === "settingsChanged") {
       await scheduleNext();

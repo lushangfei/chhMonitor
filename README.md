@@ -31,7 +31,7 @@
 
 ## 使用
 
-- 点扩展图标查看新帖列表；打开弹窗即清零角标
+- 点扩展图标查看新帖列表；滚动查看时只将实际显示的条目标为已读，未展示的新帖保留角标
 - 点弹窗右下角 **设置** 配置：刷新周期、通知总开关、桌面提示、提示音、关键词、发帖人、组合方式
 - 改动设置或代码后，到 `chrome://extensions/` 点 🔄 重新加载
 
@@ -118,6 +118,7 @@ Chiphell monitoring requires the same Chrome profile to be logged in to chiphell
 ## How It Works
 
 - A background service worker uses `chrome.alarms` to fetch Chiphell's forum page and V2EX's JSON Feed, then identifies new posts by source and post ID.
+- Only unread posts visible in the popup scroll area are marked as read; unseen posts retain their badge count.
 - On first install it establishes a baseline (so historical posts aren't treated as new); afterward, only posts not seen before count as new.
 - Login detection: whether the page contains a "log out" link.
 
