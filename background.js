@@ -320,7 +320,6 @@ async function runCheck(reason) {
   const matchKw = (title) => matchKeywords(title, kws);
   const matchAu = (author) => authors.includes((author || "").toLowerCase());
   const isAlertable = (t) => {
-    if (!anyFilter) return true; // 未设任何过滤 -> 全部提醒
     if (kwOn && !auOn) return matchKw(t.title);
     if (!kwOn && auOn) return matchAu(t.author);
     // 两个过滤器都开：按组合方式
@@ -389,7 +388,8 @@ async function runCheck(reason) {
       match: anyFilter && isAlertable(thread),
     }));
     const brandNew = source.seeded ? current.filter((thread) => !known.has(thread.tid)) : [];
-    const matchingNew = brandNew.filter(isAlertable);
+    // 未启用任何筛选时，所有新帖都符合提醒条件；只有启用了筛选才执行匹配。
+    const matchingNew = anyFilter ? brandNew.filter(isAlertable) : brandNew;
     matchingNew.forEach((thread) => {
       unread.add(thread.tid);
       if (settings.notify && (settings.notifyPopup || settings.notifySound)) {
