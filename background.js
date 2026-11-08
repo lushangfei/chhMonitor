@@ -251,6 +251,13 @@ function setBadge(text, color) {
   chrome.action.setBadgeText({ text: text || "" });
   if (color) chrome.action.setBadgeBackgroundColor({ color });
 }
+function updateBadge(count, settings) {
+  setBadge(settings.notify && count ? String(count) : "", "#c8102e");
+}
+async function syncBadge() {
+  const [state, settings] = await Promise.all([getState(), getSettings()]);
+  updateBadge((state.unreadTids || []).length, settings);
+}
 async function notify(title, message, targetUrl = MONITOR_URL, stableId = "") {
   const notificationId = stableId || `monitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const { notificationTargets = {} } = await chrome.storage.local.get(["notificationTargets"]);
@@ -455,8 +462,7 @@ async function performCheck(reason) {
     sourceStatus,
   });
 
-  const badgeCount = unread.size;
-  setBadge(badgeCount > 0 ? String(badgeCount) : "", "#c8102e");
+  updateBadge(unread.size, await getSettings());
 
   // 先保存两个来源的检查结果，再发送登录提醒；失败时下一轮继续重试。
   if (notifyLogin) {
@@ -502,7 +508,7 @@ function markRead(tids) {
     const state = await getState();
     const unreadTids = (state.unreadTids || []).filter((tid) => !displayed.has(tid));
     await patchState({ unreadTids });
-    setBadge(unreadTids.length ? String(unreadTids.length) : "", "#c8102e");
+    updateBadge(unreadTids.length, await getSettings());
   });
 }
 
@@ -520,12 +526,14 @@ chrome.alarms.onAlarm.addListener((a) => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureDefaults();
+  await serializeOperation(syncBadge);
   await runCheck("install");
   scheduleNext();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await ensureDefaults();
+  await serializeOperation(syncBadge);
   runCheck("startup");
   scheduleNext();
 });
@@ -570,6 +578,9 @@ chrome.runtime.onMessage.addListener((msg, sender, send) => {
       await markRead(msg.tids);
       send({ ok: true });
     } else if (msg.type === "settingsChanged") {
+      // 关闭通知时立即隐藏角标；队列同步可避免被正在进行的检查覆盖。
+      if (!(await getSettings()).notify) setBadge("", "#c8102e");
+      await serializeOperation(syncBadge);
       await scheduleNext();
       send({ ok: true });
     } else {

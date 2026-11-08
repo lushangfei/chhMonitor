@@ -83,14 +83,15 @@ function render(state, settings) {
     threads.forEach((t) => {
       const li = document.createElement("li");
       const isNew = unread.has(t.tid);
+      const showNew = isNew && !!settings?.notify;
       const cls = [];
-      if (isNew) cls.push("new");
+      if (showNew) cls.push("new");
       if (t.match) cls.push("match");
       li.className = cls.join(" ");
       const title = document.createElement("span");
       title.className = "t";
       title.innerHTML =
-        (isNew ? '<span class="newdot"></span>' : "") +
+        (showNew ? '<span class="newdot"></span>' : "") +
         `<span class="source-tag">${escapeHtml(t.sourceLabel || "Chiphell")}</span>` +
         (t.match ? '<span class="kwtag">关键词</span>' : "") +
         escapeHtml(t.title);

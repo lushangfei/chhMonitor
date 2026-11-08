@@ -10,11 +10,11 @@
 - 📛 **角标计数**：图标上显示未读新帖数量
 - 🔎 **多站点监控**：同时监控 Chiphell 二手区和 V2EX「二手交易」节点
 - 📋 **列表直达**：点图标弹出列表（标题 + 发帖人），点条目在新标签打开原帖
-- 🔔 **桌面提示与提示音**：总通知开启后可分别控制，默认只保留角标提示
+- 🔔 **新帖提醒**：总开关控制角标和帖子红点；开启后可分别控制桌面提示与提示音
 - 🏷️ **关键词过滤**：填写并启用时只提醒标题命中的新帖；关键词留空则不限制标题（发帖人筛选独立生效）
 - 👤 **发帖人过滤**：只盯指定卖家，可与关键词按「或 / 且」组合
 - ⏱️ **自定义刷新周期**：1–30 分钟，附随机抖动规避频率风控
-- 🔐 **登录检测**：过期时角标变橙并在弹窗提示重新登录
+- 🔐 **登录检测**：登录过期时在弹窗提示重新登录
 
 ## 安装
 
@@ -31,7 +31,7 @@
 
 ## 使用
 
-- 点扩展图标查看新帖列表；滚动查看时只将实际显示的条目标为已读，未展示的新帖保留角标
+- 点扩展图标查看新帖列表；滚动查看时只将实际显示的条目标为已读，未展示的新帖保留未读状态，通知开启时显示角标
 - 点弹窗右下角 **设置** 配置：刷新周期、通知总开关、桌面提示、提示音、关键词、发帖人、组合方式
 - 改动设置或代码后，到 `chrome://extensions/` 点 🔄 重新加载
 
@@ -90,11 +90,11 @@ A Chrome extension (Manifest V3) that monitors Chiphell's second-hand section an
 - 📛 **Badge count**: shows the number of unread new posts on the icon
 - 🔎 **Multi-site monitoring**: tracks Chiphell's second-hand section and V2EX's all4all node
 - 📋 **Direct list access**: click the icon for a popup list (title + poster); click an item to open the original post in a new tab
-- 🔔 **Desktop notifications and sound**: separate switches under the master notification toggle; badge-only by default
+- 🔔 **New-post alerts**: the master toggle controls the badge and unread dots, with separate switches for desktop notifications and sound
 - 🏷️ **Keyword filter**: when enabled with keywords, only matching titles trigger alerts; empty keywords allow all titles (author filtering still applies)
 - 👤 **Poster filter**: watch only specific sellers, combinable with keywords via "OR / AND"
 - ⏱️ **Custom refresh interval**: 1–30 minutes, with random jitter to avoid rate-limit controls
-- 🔐 **Login detection**: when your session expires, the badge turns orange and the popup prompts you to log in again
+- 🔐 **Login detection**: the popup prompts you to log in again when your session expires
 
 ## Installation
 
@@ -111,7 +111,7 @@ Chiphell monitoring requires the same Chrome profile to be logged in to chiphell
 
 ## Usage
 
-- Click the extension icon to view the new-post list; opening the popup resets the badge to zero
+- Click the extension icon to view the list; unread posts are marked as read when visible while scrolling
 - Click **Settings** at the bottom-right of the popup to configure: refresh interval, notification toggle, keywords, posters, and combination mode
 - After changing settings or code, go to `chrome://extensions/` and click 🔄 to reload
 

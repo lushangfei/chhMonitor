@@ -14,14 +14,15 @@ function background(fetch, initial = {}) {
   const badges = [];
   const notifications = [];
   const event = { addListener() {} };
+  let onMessage;
   const chrome = {
     storage: { local: {
       get: async (keys) => structuredClone(Object.fromEntries(keys.map((key) => [key, data[key]]))),
       set: async (items) => Object.assign(data, structuredClone(items)),
     } },
     action: { setBadgeText: ({ text }) => badges.push(text), setBadgeBackgroundColor() {} },
-    alarms: { onAlarm: event },
-    runtime: { onInstalled: event, onStartup: event, onMessage: event },
+    alarms: { onAlarm: event, create() {} },
+    runtime: { onInstalled: event, onStartup: event, onMessage: { addListener: (listener) => { onMessage = listener; } } },
     notifications: { onClicked: event, create: async (id, options) => notifications.push({ id, ...options }) }, tabs: { onUpdated: event },
   };
   const context = vm.createContext({ chrome, fetch, AbortController,
@@ -31,7 +32,8 @@ function background(fetch, initial = {}) {
   vm.runInContext(fs.readFileSync(path.join(root, 'background.js'), 'utf8'), context);
   // Network fixtures isolate scheduling/storage from the forum HTML format.
   vm.runInContext('parseThreads = JSON.parse; parseV2exFeed = JSON.parse; detectLogin = () => true;', context);
-  return { context, data, timers, badges, notifications };
+  const message = (msg) => new Promise((resolve) => onMessage(msg, {}, resolve));
+  return { context, data, timers, badges, notifications, message };
 }
 
 for (const stalledSource of ['chiphell', 'v2ex']) {
@@ -55,7 +57,7 @@ for (const stalledSource of ['chiphell', 'v2ex']) {
       assert.deepEqual(env.data.state.unreadTids, [healthyId]);
       assert.equal(env.data.state.sourceStatus[stalledSource].ok, false);
       assert.match(env.data.state.lastError, /请求超时/);
-      assert.equal(env.badges.at(-1), '1');
+      assert.equal(env.badges.at(-1), '');
       assert.equal(env.timers.size, 0);
     });
   }
@@ -79,7 +81,7 @@ test('overlapping triggers share one check; reads during fetch preserve newly ar
   await Promise.all([first, second, reading]);
   assert.equal(requests, 2);
   assert.deepEqual(env.data.state.unreadTids, ['chh:new']);
-  assert.equal(env.badges.at(-1), '1');
+  assert.equal(env.badges.at(-1), '');
   await env.context.markRead();
   assert.deepEqual(env.data.state.unreadTids, ['chh:new']);
   await env.context.runCheck('later');
@@ -159,6 +161,12 @@ test('popup exposes all posts, reports source failure with cached data, and ackn
   context.render({ threads, unreadTids: [], sourceStatus: { chiphell: { ok: true }, v2ex: { ok: true } } });
   assert.equal(elements.get('sourceBanner').style.display, 'none');
   assert.equal(elements.get('notifyBanner').style.display, 'none');
+  context.render({ threads: [post('chh:unread')], unreadTids: ['chh:unread'] }, { notify: false });
+  assert.doesNotMatch(elements.get('list').children[0].children[0].innerHTML, /newdot/);
+  assert.notEqual(elements.get('list').children[0].className, 'new');
+  context.render({ threads: [post('chh:unread')], unreadTids: ['chh:unread'] }, { notify: true });
+  assert.match(elements.get('list').children[0].children[0].innerHTML, /newdot/);
+  assert.equal(elements.get('list').children[0].className, 'new');
 });
 
 for (const settings of [
@@ -232,4 +240,31 @@ test('enabling desktop notifications while logged out sends the previously unsen
   await env.context.runCheck('notifications-on');
   assert.equal(env.data.state.loginWarned, true);
   assert.equal(env.notifications.filter((n) => n.id === 'monitor-login-required').length, 1);
+});
+
+
+test('master switch hides badge immediately during a check and restores unread count when enabled', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const env = background(async (url) => {
+    await gate;
+    return response([post(url.includes('chiphell') ? 'chh:new' : 'v2ex:old')]);
+  }, { knownTids: ['v2ex:old'], unreadTids: ['chh:old'], threads: [post('chh:old')] });
+  env.data.settings = { notify: true, notifyPopup: false, notifySound: false };
+  const checking = env.context.runCheck('alarm');
+  await turn();
+  env.data.settings.notify = false;
+  const disabling = env.message({ type: 'settingsChanged' });
+  await turn();
+  assert.equal(env.badges.at(-1), '');
+  release();
+  await Promise.all([checking, disabling]);
+  assert.equal(env.badges.at(-1), '');
+  assert.deepEqual(env.data.state.unreadTids, ['chh:old', 'chh:new']);
+  await env.context.markRead(['chh:old']);
+  assert.equal(env.badges.at(-1), '');
+  env.data.settings.notify = true;
+  await env.message({ type: 'settingsChanged' });
+  assert.equal(env.badges.at(-1), '1');
+  assert.deepEqual(env.data.state.unreadTids, ['chh:new']);
 });
