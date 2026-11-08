@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "CHH 二手区上新提醒（非官方）",
+  "name": "CHH / V2EX 新帖提醒（非官方）",
   "version": "1.0.1",
-  "description": "非官方第三方工具：监控论坛二手交易区新帖，图标角标显示新帖数，点击直达原帖，可选弹窗通知，支持关键词/发帖人过滤与自定义刷新周期。与 Chiphell 无关联。",
-  "permissions": ["storage", "alarms", "notifications"],
-  "host_permissions": ["https://www.chiphell.com/*"],
+  "description": "非官方第三方工具：监控 Chiphell 与 V2EX 二手交易新帖，可选桌面提示和提示音，支持关键词/发帖人过滤。",
+  "permissions": ["storage", "alarms", "notifications", "offscreen"],
+  "host_permissions": ["https://www.chiphell.com/*", "https://www.v2ex.com/*"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Chiphell 二手区监控",
+    "default_title": "CHH / V2EX 新帖监控",
     "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
   },
   "options_page": "options.html",

@@ -60,6 +60,11 @@
         color: #c8102e; border: 1px solid #c8102e; border-radius: 3px;
         padding: 0 4px; margin-right: 6px; vertical-align: middle;
       }
+      .source-tag {
+        display: inline-block; font-size: 10px; line-height: 1.4;
+        color: #52606d; border: 1px solid #8795a1; border-radius: 3px;
+        padding: 0 4px; margin-right: 6px; vertical-align: middle;
+      }
       .empty { padding: 24px 12px; text-align: center; opacity: 0.6; }
       footer {
         display: flex; align-items: center; justify-content: space-between;
@@ -77,10 +82,12 @@
   </head>
   <body>
     <header>
-      <span class="title">Chiphell 二手区</span>
+      <span class="title">新帖监控</span>
       <span class="status"><span id="dot" class="dot"></span><span id="statusText">检查中…</span></span>
     </header>
     <div id="banner" class="banner">检测到未登录或登录已过期，<a id="loginLink" href="#">点此登录 Chiphell →</a></div>
+    <div id="sourceBanner" class="banner" style="display:none"></div>
+    <div id="notifyBanner" class="banner" style="display:none"></div>
     <ul id="list"></ul>
     <div id="empty" class="empty" style="display:none">暂无帖子</div>
     <footer>

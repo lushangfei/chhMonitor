@@ -20,6 +20,7 @@
       .hint { font-size: 12px; opacity: 0.6; margin-top: 4px; }
       .check { display: flex; align-items: center; gap: 8px; }
       .check input { width: 16px; height: 16px; }
+      .check input:disabled + span { opacity: 0.5; }
       button {
         font: inherit; font-weight: 600; padding: 8px 18px; border: none;
         background: #c8102e; color: #fff; border-radius: 6px; cursor: pointer; margin-top: 10px;
@@ -30,7 +31,7 @@
     </style>
   </head>
   <body>
-    <h1>Chiphell 二手区监控 · 设置</h1>
+    <h1>新帖监控 · 设置</h1>
 
     <div class="row">
       <label for="interval">刷新周期</label>
@@ -47,24 +48,32 @@
     </div>
 
     <div class="row">
-      <label>桌面弹窗通知</label>
+      <label>新帖通知</label>
       <div class="check">
         <input type="checkbox" id="notify" />
-        <span>发现新帖时弹出系统通知（默认关闭，仅角标提示）</span>
+        <span>启用新帖通知（默认关闭）</span>
       </div>
-      <div class="hint">关闭时：只在扩展图标上显示新帖数量，不打断你的当前操作。</div>
+      <div class="check" style="margin-top:8px">
+        <input type="checkbox" id="notifyPopup" />
+        <span>桌面提示</span>
+      </div>
+      <div class="check" style="margin-top:6px">
+        <input type="checkbox" id="notifySound" />
+        <span>提示音</span>
+      </div>
+      <div class="hint">总开关关闭时隐藏扩展角标和帖子红点；开启后显示未读提示，并可分别选择桌面提示和提示音。</div>
     </div>
 
     <div class="row">
       <label>关键词过滤</label>
       <div class="check">
         <input type="checkbox" id="keywordFilter" />
-        <span>只对标题命中关键词的新帖提醒（角标 / 弹窗）</span>
+        <span>只对 Chiphell / V2EX 标题命中关键词的新帖提醒（角标 / 弹窗）</span>
       </div>
       <textarea id="keywords" rows="2"
         placeholder="每行一个或用逗号分隔，如：R5 5600, RTX 4090, 27寸"
         style="width:100%;box-sizing:border-box;margin-top:8px;padding:6px 8px;border-radius:6px;border:1px solid rgba(128,128,128,0.5);background:transparent;color:inherit;font:inherit;resize:vertical;"></textarea>
-      <div class="hint">大小写不敏感；用逗号、分号、顿号或换行分隔多个关键词，空格属于关键词内容。例如“R5 5600”会整体匹配，不会误命中“DDR5”或“15600”。关闭此开关时，所有新帖都提醒。</div>
+      <div class="hint">大小写不敏感，标题包含关键词即可命中（如“iPhone”可匹配“iPhone17”）；用逗号、分号、顿号或换行分隔多个关键词，空格属于关键词内容。例如“R5 5600”会按短语匹配。关键词和发帖人过滤都关闭或内容为空时，所有新帖都符合提醒条件；开启任一过滤器后按筛选条件提醒。</div>
     </div>
 
     <div class="row">

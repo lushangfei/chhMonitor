@@ -16,6 +16,8 @@ async function load() {
     {
       intervalMinutes: 5,
       notify: false,
+      notifyPopup: true,
+      notifySound: false,
       keywords: "",
       keywordFilter: false,
       authors: "",
@@ -26,6 +28,9 @@ async function load() {
   );
   $("interval").value = String(s.intervalMinutes);
   $("notify").checked = !!s.notify;
+  $("notifyPopup").checked = !!s.notifyPopup;
+  $("notifySound").checked = !!s.notifySound;
+  updateNotificationControls();
   $("keywords").value = s.keywords || "";
   $("keywordFilter").checked = !!s.keywordFilter;
   $("authors").value = s.authors || "";
@@ -33,10 +38,20 @@ async function load() {
   $("combine").value = s.combine === "and" ? "and" : "or";
 }
 
+function updateNotificationControls() {
+  const enabled = $("notify").checked;
+  $("notifyPopup").disabled = !enabled;
+  $("notifySound").disabled = !enabled;
+}
+
+$("notify").addEventListener("change", updateNotificationControls);
+
 $("save").addEventListener("click", async () => {
   const settings = {
     intervalMinutes: parseInt($("interval").value, 10) || 5,
     notify: $("notify").checked,
+    notifyPopup: $("notifyPopup").checked,
+    notifySound: $("notifySound").checked,
     keywords: $("keywords").value.trim(),
     keywordFilter: $("keywordFilter").checked,
     authors: $("authors").value.trim(),
