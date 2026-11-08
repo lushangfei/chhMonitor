@@ -12,6 +12,7 @@ function background(fetch, initial = {}) {
   const data = { settings: { notify: false }, state: { seeded: true, v2exSeeded: true, ...initial } };
   const timers = new Map();
   const badges = [];
+  const notifications = [];
   const event = { addListener() {} };
   const chrome = {
     storage: { local: {
@@ -21,7 +22,7 @@ function background(fetch, initial = {}) {
     action: { setBadgeText: ({ text }) => badges.push(text), setBadgeBackgroundColor() {} },
     alarms: { onAlarm: event },
     runtime: { onInstalled: event, onStartup: event, onMessage: event },
-    notifications: { onClicked: event }, tabs: { onUpdated: event },
+    notifications: { onClicked: event, create: async (id, options) => notifications.push({ id, ...options }) }, tabs: { onUpdated: event },
   };
   const context = vm.createContext({ chrome, fetch, AbortController,
     setTimeout: (fn) => { const id = Symbol(); timers.set(id, fn); return id; },
@@ -30,7 +31,7 @@ function background(fetch, initial = {}) {
   vm.runInContext(fs.readFileSync(path.join(root, 'background.js'), 'utf8'), context);
   // Network fixtures isolate scheduling/storage from the forum HTML format.
   vm.runInContext('parseThreads = JSON.parse; parseV2exFeed = JSON.parse; detectLogin = () => true;', context);
-  return { context, data, timers, badges };
+  return { context, data, timers, badges, notifications };
 }
 
 for (const stalledSource of ['chiphell', 'v2ex']) {
@@ -155,3 +156,24 @@ test('popup exposes all posts, reports source failure with cached data, and ackn
   context.render({ threads, unreadTids: [], sourceStatus: { chiphell: { ok: true }, v2ex: { ok: true } } });
   assert.equal(elements.get('sourceBanner').style.display, 'none');
 });
+
+for (const settings of [
+  { keywords: "", keywordFilter: false },
+  { keywords: "", keywordFilter: true },
+  { keywords: "  ,，;\n", keywordFilter: true },
+  { keywords: "iphone", keywordFilter: false },
+  { keywords: "iphone", keywordFilter: true },
+]) {
+  test(`optional keywords: ${JSON.stringify(settings)} sends the expected batch`, async () => {
+    const env = background(async (url) => response(url.includes('chiphell')
+      ? [post('chh:iphone17'), post('chh:switch')]
+      : [post('v2ex:iphone17'), post('v2ex:mac')]));
+    env.data.settings = { notify: true, notifyPopup: true, notifySound: false, ...settings };
+    await env.context.runCheck('manual');
+    const filtered = settings.keywordFilter && settings.keywords === 'iphone';
+    assert.equal(env.data.state.unreadTids.length, filtered ? 2 : 4);
+    assert.equal(env.notifications.length, 1);
+    assert.match(env.notifications[0].title, filtered ? /2 条新帖/ : /4 条新帖/);
+    if (filtered) assert(env.data.state.unreadTids.every((id) => id.includes('iphone17')));
+  });
+}

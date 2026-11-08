@@ -11,7 +11,7 @@
 - 🔎 **多站点监控**：同时监控 Chiphell 二手区和 V2EX「二手交易」节点
 - 📋 **列表直达**：点图标弹出列表（标题 + 发帖人），点条目在新标签打开原帖
 - 🔔 **桌面提示与提示音**：总通知开启后可分别控制，默认只保留角标提示
-- 🏷️ **关键词过滤**：只对标题命中关键词的新帖提醒
+- 🏷️ **关键词过滤**：填写并启用时只提醒标题命中的新帖；关键词留空则不限制标题（发帖人筛选独立生效）
 - 👤 **发帖人过滤**：只盯指定卖家，可与关键词按「或 / 且」组合
 - ⏱️ **自定义刷新周期**：1–30 分钟，附随机抖动规避频率风控
 - 🔐 **登录检测**：过期时角标变橙并在弹窗提示重新登录
@@ -91,7 +91,7 @@ A Chrome extension (Manifest V3) that monitors Chiphell's second-hand section an
 - 🔎 **Multi-site monitoring**: tracks Chiphell's second-hand section and V2EX's all4all node
 - 📋 **Direct list access**: click the icon for a popup list (title + poster); click an item to open the original post in a new tab
 - 🔔 **Desktop notifications and sound**: separate switches under the master notification toggle; badge-only by default
-- 🏷️ **Keyword filter**: only alerts on new posts whose title matches your keywords
+- 🏷️ **Keyword filter**: when enabled with keywords, only matching titles trigger alerts; empty keywords allow all titles (author filtering still applies)
 - 👤 **Poster filter**: watch only specific sellers, combinable with keywords via "OR / AND"
 - ⏱️ **Custom refresh interval**: 1–30 minutes, with random jitter to avoid rate-limit controls
 - 🔐 **Login detection**: when your session expires, the badge turns orange and the popup prompts you to log in again
