@@ -381,6 +381,7 @@ async function performCheck(reason) {
   const errors = [];
   const sourceStatus = {};
   let nextState = {};
+  let notifyLogin = false;
 
   const sourceResults = [
     { key: "chiphell", label: "Chiphell", result: chiphellResult, seeded: !!st.seeded },
@@ -401,9 +402,8 @@ async function performCheck(reason) {
       errors.push(`Chiphell：${message}`);
       sourceStatus[source.key] = { ok: false, error: message, count: 0 };
       if (settings.notify && settings.notifyPopup && !st.loginWarned) {
-        await notify("Chiphell 监控：需要登录", "检测到未登录或登录已过期，点击扩展图标去登录。");
+        notifyLogin = true;
       }
-      nextState.loginWarned = true;
       continue;
     }
     if (!result.threads.length) {
@@ -436,6 +436,7 @@ async function performCheck(reason) {
     if (source.key === "chiphell") {
       nextState.loginOk = true;
       nextState.loginWarned = false;
+      nextState.lastLoginNotificationError = "";
     }
   }
 
@@ -456,6 +457,16 @@ async function performCheck(reason) {
 
   const badgeCount = unread.size;
   setBadge(badgeCount > 0 ? String(badgeCount) : "", "#c8102e");
+
+  // 先保存两个来源的检查结果，再发送登录提醒；失败时下一轮继续重试。
+  if (notifyLogin) {
+    try {
+      await notify("Chiphell 监控：需要登录", "检测到未登录或登录已过期，点击扩展图标去登录。", LOGIN_URL, "monitor-login-required");
+      await patchState({ loginWarned: true, lastLoginNotificationError: "" });
+    } catch (error) {
+      await patchState({ loginWarned: false, lastLoginNotificationError: error.message || "登录提醒发送失败" });
+    }
+  }
 
   if (settings.notify && (settings.notifyPopup || settings.notifySound) && pendingAlerts.size > 0) {
     const batch = sortNewestFirst([...pendingAlerts.values()]);

@@ -138,12 +138,15 @@ test('popup exposes all posts, reports source failure with cached data, and ackn
   vm.runInContext(fs.readFileSync(path.join(root, 'popup.js'), 'utf8'), context);
   const threads = Array.from({ length: 100 }, (_, i) => post(`chh:${i}`));
   context.render({ loginOk: true, threads, unreadTids: threads.map((t) => t.tid),
+    lastLoginNotificationError: 'login failed', lastNotificationError: 'post failed',
     sourceStatus: { chiphell: { ok: true }, v2ex: { ok: false, error: 'HTTP 503' } },
   });
   assert.equal(elements.get('list').children.length, 100);
   assert.equal(elements.get('sourceBanner').style.display, 'block');
   assert.match(elements.get('sourceBanner').textContent, /V2EX：HTTP 503/);
   assert.equal(elements.get('statusText').textContent, '部分来源异常');
+  assert.match(elements.get('notifyBanner').textContent, /登录提醒：login failed/);
+  assert.match(elements.get('notifyBanner').textContent, /新帖提醒：post failed/);
   assert.equal(messages.filter((m) => m.type === 'markRead').length, 0);
   const observer = observers.at(-1);
   observer.callback([
@@ -155,6 +158,7 @@ test('popup exposes all posts, reports source failure with cached data, and ackn
   assert.deepEqual(Array.from(messages.at(-1).tids), ['chh:50']);
   context.render({ threads, unreadTids: [], sourceStatus: { chiphell: { ok: true }, v2ex: { ok: true } } });
   assert.equal(elements.get('sourceBanner').style.display, 'none');
+  assert.equal(elements.get('notifyBanner').style.display, 'none');
 });
 
 for (const settings of [
@@ -177,3 +181,55 @@ for (const settings of [
     if (filtered) assert(env.data.state.unreadTids.every((id) => id.includes('iphone17')));
   });
 }
+
+test('login notification failure preserves V2EX results and retries independently of new-post notifications', async () => {
+  let loggedIn = false;
+  let failLogin = true;
+  let loginAttempts = 0;
+  const env = background(async (url) => response(url.includes('chiphell') ? [post('chh:old')] : [post('v2ex:new')]));
+  env.context.detectLogin = () => loggedIn;
+  env.data.settings = { notify: true, notifyPopup: true, notifySound: false };
+  env.context.chrome.notifications.create = async (id, options) => {
+    if (id === 'monitor-login-required') {
+      loginAttempts++;
+      assert.equal(env.data.state.sourceStatus.v2ex.ok, true);
+      assert.deepEqual(env.data.state.unreadTids, ['v2ex:new']);
+      if (failLogin) throw new Error('notification permission denied');
+    }
+    env.notifications.push({ id, ...options });
+  };
+  await env.context.runCheck('manual');
+  assert.equal(env.data.state.loginOk, false);
+  assert.equal(env.data.state.loginWarned, false);
+  assert.equal(env.data.state.sourceStatus.chiphell.ok, false);
+  assert.match(env.data.state.lastError, /Chiphell/);
+  assert.match(env.data.state.lastLoginNotificationError, /permission denied/);
+  assert.equal(env.data.state.lastNotificationError, '');
+  assert.equal(env.notifications.length, 1);
+  assert.match(env.notifications[0].title, /1 条新帖/);
+  assert.equal(env.badges.at(-1), '1');
+  failLogin = false;
+  await env.context.runCheck('retry');
+  assert.equal(loginAttempts, 2);
+  assert.equal(env.data.state.loginWarned, true);
+  assert.equal(env.data.state.lastLoginNotificationError, '');
+  assert.equal(env.data.notificationTargets['monitor-login-required'], 'https://www.chiphell.com/member.php?mod=logging&action=login');
+  await env.context.runCheck('again');
+  assert.equal(loginAttempts, 2);
+  loggedIn = true;
+  await env.context.runCheck('logged-in');
+  assert.equal(env.data.state.loginOk, true);
+  assert.equal(env.data.state.loginWarned, false);
+  assert.equal(env.data.state.lastLoginNotificationError, '');
+});
+
+test('enabling desktop notifications while logged out sends the previously unsent login warning', async () => {
+  const env = background(async (url) => response([post(url.includes('chiphell') ? 'chh:old' : 'v2ex:old')]));
+  env.context.detectLogin = () => false;
+  await env.context.runCheck('notifications-off');
+  assert.notEqual(env.data.state.loginWarned, true);
+  env.data.settings = { notify: true, notifyPopup: true, notifySound: false };
+  await env.context.runCheck('notifications-on');
+  assert.equal(env.data.state.loginWarned, true);
+  assert.equal(env.notifications.filter((n) => n.id === 'monitor-login-required').length, 1);
+});

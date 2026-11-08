@@ -20,8 +20,11 @@ function render(state, settings) {
   const banner = $("banner");
   const notifyBanner = $("notifyBanner");
 
-  if (state.lastNotificationError) {
-    notifyBanner.textContent = `系统通知发送失败，稍后重试：${state.lastNotificationError}`;
+  const notificationErrors = [];
+  if (state.lastLoginNotificationError) notificationErrors.push(`登录提醒：${state.lastLoginNotificationError}`);
+  if (state.lastNotificationError) notificationErrors.push(`新帖提醒：${state.lastNotificationError}`);
+  if (notificationErrors.length) {
+    notifyBanner.textContent = `系统通知发送失败：${notificationErrors.join("；")}`;
     notifyBanner.style.display = "block";
   } else {
     notifyBanner.style.display = "none";
